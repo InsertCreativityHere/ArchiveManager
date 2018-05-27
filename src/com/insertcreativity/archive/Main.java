@@ -40,7 +40,7 @@ public class Main
         try
         {
             md = MessageDigest.getInstance("SHA-256");
-            c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            c = Cipher.getInstance("AES/CTR/NoPadding");
         } catch(NoSuchAlgorithmException|NoSuchPaddingException cryptoInitException)
         {
             cryptoInitException.printStackTrace();
@@ -50,7 +50,7 @@ public class Main
         cipher = c;
         
         String keyString = "InsertKeyHere";
-        key = new SecretKeySpec(hasher.digest(keyString.getBytes(UTF_8)), "AES");
+        key = new SecretKeySpec(keyString.getBytes(UTF_8), "AES");
     }
     
     private static final byte[] getVectorFromSize(long size)
