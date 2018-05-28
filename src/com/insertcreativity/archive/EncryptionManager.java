@@ -7,10 +7,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -25,15 +21,14 @@ import javax.crypto.spec.SecretKeySpec;
 
 public final class EncryptionManager implements Serializable
 {
+    /**The default initialization vector to use if none are specified.**/
+    public static final byte[] defaultIv = new byte[] {77, 97, 100, 105, 65, 117, 115, 116, 105, 110, 82, 97, 99, 104, 101, 108};
     /**Engine used for generating random variables.**/
     private static final SecureRandom randomEngine;
-    static{
-        randomEngine = new SecureRandom();
-    }
-
     /**Prevent potential attackers from serializing this object by generating a random UID whenever this class is loaded.**/
     private static final long serialVersionUID;
     static{
+        randomEngine = new SecureRandom();
         serialVersionUID = randomEngine.nextLong();
     }
 
@@ -64,23 +59,21 @@ public final class EncryptionManager implements Serializable
     /**The internal counter used by the encryption manager.**/
     private final byte[] counter;
     /**The number of the block that the manager is currently over.**/
-    private final long currentPosition;
+    private long currentPosition;
     /**Engine used for performing hash functions.**/
     private final MessageDigest hashEngine1;
     /**Engine used for performing hash functions.**/
     private final MessageDigest hashEngine2;
     /**Engine used for encrypting and decrypting data.**/
     private final Cipher encryptionEngine;
-    /**The character encoding scheme for the manager to use.**/
-    private final Charset charset = StandardCharsets.UTF_16LE;
 
     /**
      * Creates a new encryption manager. Note that the provided key will be erased after the manager finishes initializing.
-     * @param key Char array containing the secret key that the archive should use for encrypting/decrypting.
-     * @param iv Byte array containing the initialization vector for the manager (starting value for the CTR counter). If null, the default IV is used.
+     * @param key Byte array containing the secret key that the archive should use for encrypting/decrypting.
+     * @param iv A 16 byte length array containing the initialization vector for the manager (starting value for the CTR counter). If null, the default IV is used.
      * @return A new instance of an Encryption Manager initialized with the specified key. Or null if the manager couldn't be initialized correctly.
     **/
-    public static final EncryptionManager getInstance(char[] key, byte[] iv)
+    public static final EncryptionManager getInstance(byte[] key, byte[] iv)
     {
         try
         {
@@ -116,7 +109,7 @@ public final class EncryptionManager implements Serializable
     }
 
     //TODO
-    private EncryptionManager(char[] key, byte[] iv) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException
+    private EncryptionManager(byte[] key, byte[] iv) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException
     {
         try
         {
@@ -125,19 +118,13 @@ public final class EncryptionManager implements Serializable
             hashEngine2 = MessageDigest.getInstance("SHA-256");
             encryptionEngine = Cipher.getInstance("AES/ECB/NoPadding");
 
-            //Initialize the cipher with a hash of the secret key
-            CharBuffer cBuffer = CharBuffer.wrap(key);
-            ByteBuffer bBuffer = charset.encode(cBuffer);
-            encryptionEngine.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(hashEngine1.digest(bBuffer.array()), "AES"));
-            //Overwrite any sensitive information stored in the buffers
-            Arrays.fill(cBuffer.array(), '\255');
-            Arrays.fill(bBuffer.array(), (byte)255);
+            encryptionEngine.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(hashEngine1.digest(key), "AES"));
 
             //Initialize a counter with the provided IV.
             currentPosition = 0;
             if(iv == null)
             {
-                counter = new byte[] {77, 97, 100, 105, 65, 117, 115, 116, 105, 110, 82, 97, 99, 104, 101, 108};
+                counter = defaultIv;
             } else
             if(iv.length == 16){
                 counter = iv;
@@ -146,7 +133,7 @@ public final class EncryptionManager implements Serializable
             }
         } finally{
             //Ensure that the provided data is erased
-            Arrays.fill(key, '\255');
+            Arrays.fill(key, (byte)255);
             Arrays.fill(iv, (byte)255);
         }
     }
@@ -225,6 +212,7 @@ public final class EncryptionManager implements Serializable
     **/
     private final void increment()
     {
+        currentPosition++;
         for(int i = 0; i < counter.length; i++)
         {
             if(counter[i] == -128)
@@ -248,6 +236,7 @@ public final class EncryptionManager implements Serializable
 
         for(int i = 0; i < b.length; i++)
         {
+            currentPosition += ((b[i] & 0xff) << (8 * i));
             temp = (counter[i] & 0xff) + (b[i] & 0xff) + (carry? 1 : 0);
             carry = (temp > 255);
             counter[i] = (byte)(temp % 256);
@@ -259,6 +248,7 @@ public final class EncryptionManager implements Serializable
     **/
     private final void decrement()
     {
+        currentPosition--;
         for(int i = 0; i < counter.length; i++)
         {
             if(counter[i] == 0)
@@ -282,6 +272,7 @@ public final class EncryptionManager implements Serializable
 
         for(int i = 0; i < b.length; i++)
         {
+            currentPosition -= ((b[i] & 0xff) << (8 * i));
             temp = (counter[i] & 0xff) - (b[i] & 0xff) - (carry? 1 : 0);
             carry = (temp < 0);
             counter[i] = (byte)(temp % 256);
@@ -289,17 +280,17 @@ public final class EncryptionManager implements Serializable
     }
 
     //TODO
-    public final void process(byte[] b) throws IllegalBlockSizeException, BadPaddingException
+    public final void process(byte[] b, int offset, int length) throws IllegalBlockSizeException, BadPaddingException
     {
         byte[] keyStream = null;
-        for(int i = 0; i < b.length; i++)
+        for(int i = 0; i < length; i++)
         {
             if((i % 16) == 0)
             {
                 keyStream = encryptionEngine.doFinal(counter);
                 increment();
             }
-            b[i] ^= keyStream[i];
+            b[i + offset] ^= keyStream[i];
         }
     }
 
@@ -310,20 +301,20 @@ public final class EncryptionManager implements Serializable
         int count;
         while((count = inputStream.read(buffer)) != -1)
         {
-            process(buffer);
+            process(buffer, 0, count);
             outputStream.write(buffer, 0, count);
         }
     }
 
     //TODO
-    public final byte[][] processWithAuthenticate(byte[] b) throws IllegalBlockSizeException, BadPaddingException
+    public final byte[][] processWithAuthenticate(byte[] b, int offset, int length) throws IllegalBlockSizeException, BadPaddingException
     {
         //Reset the hash engine
         hashEngine1.reset();
         //Digest the plain-text
         byte[] plainHash = hashEngine1.digest(b);
 
-        process(b);
+        process(b, offset, length);
 
         //Reset the hash engine
         hashEngine1.reset();
@@ -343,7 +334,7 @@ public final class EncryptionManager implements Serializable
         while((count = inputStream.read(buffer)) != -1)
         {
             hashEngine1.update(buffer);
-            process(buffer);
+            process(buffer, 0, count);
             hashEngine2.update(buffer);
             outputStream.write(buffer, 0, count);
         }
@@ -353,7 +344,7 @@ public final class EncryptionManager implements Serializable
     }
 
     //TODO
-    public final byte[] generateRandom(int length)
+    public static final byte[] generateRandom(int length)
     {
         byte[] b = new byte[length];
         randomEngine.nextBytes(b);
