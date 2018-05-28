@@ -25,10 +25,16 @@ import javax.crypto.spec.SecretKeySpec;
 
 public final class EncryptionManager implements Serializable
 {
+    /**Engine used for generating random variables.**/
+    private static final SecureRandom randomEngine;
+    static{
+        randomEngine = new SecureRandom();
+    }
+
     /**Prevent potential attackers from serializing this object by generating a random UID whenever this class is loaded.**/
     private static final long serialVersionUID;
     static{
-        serialVersionUID = (new SecureRandom()).nextLong();
+        serialVersionUID = randomEngine.nextLong();
     }
 
     /**
@@ -65,8 +71,6 @@ public final class EncryptionManager implements Serializable
     private final MessageDigest hashEngine2;
     /**Engine used for encrypting and decrypting data.**/
     private final Cipher encryptionEngine;
-    /**Engine used for generating random variables.**/
-    private final SecureRandom randomEngine;
     /**The character encoding scheme for the manager to use.**/
     private final Charset charset = StandardCharsets.UTF_16LE;
 
@@ -94,26 +98,19 @@ public final class EncryptionManager implements Serializable
     }
 
     /**
-     * Creates a new encryption manager with a randomly generated key and iv
+     * Creates a new encryption manager with a randomly generated key and iv.
+     * @param data An array at least 48 bytes long that the new manager's key and IV copied into upon initialization.
      * @return A new instance of an Encryption Manager initialized with the specified key. Or null if the manager couldn't be initialized correctly.
     **/
     public final EncryptionManager getInstance(byte[] data)
     {
         try
         {
-            byte[] b = new byte[48];
-            EncryptionManager encryptionManager = new EncryptionManager(b);
-            process(b);
-            System.arraycopy(b, 0, data, 0, 48);
-            return encryptionManager;
+            return new EncryptionManager(data);
         } catch(NoSuchAlgorithmException|NoSuchPaddingException|InvalidKeyException unsupportedCryptoException)
         {
             System.err.println("Your system doesn't provide support for either SHA-256 or AES256-ECB.");
             unsupportedCryptoException.printStackTrace();
-        } catch(IllegalBlockSizeException|BadPaddingException cryptoException)
-        {
-            System.err.println("Failed to encrypt new manager's parameters!");
-            cryptoException.printStackTrace();
         }
         return null;
     }
@@ -136,8 +133,7 @@ public final class EncryptionManager implements Serializable
             Arrays.fill(cBuffer.array(), '\255');
             Arrays.fill(bBuffer.array(), (byte)255);
 
-            //Initialize a secure RNG and a counter with the provided IV.
-            randomEngine = SecureRandom.getInstanceStrong();
+            //Initialize a counter with the provided IV.
             currentPosition = 0;
             if(iv == null)
             {
@@ -162,7 +158,6 @@ public final class EncryptionManager implements Serializable
         hashEngine1 = MessageDigest.getInstance("SHA-256");
         hashEngine2 = MessageDigest.getInstance("SHA-256");
         encryptionEngine = Cipher.getInstance("AES/ECB/NoPadding");
-        randomEngine = SecureRandom.getInstanceStrong();
         currentPosition = 0;
 
         //Allocate arrays for holding the key and counter
@@ -355,5 +350,13 @@ public final class EncryptionManager implements Serializable
 
         //Digest the plain-text and cipher-text and return them
         return new byte[][] {hashEngine1.digest(), hashEngine2.digest()};
+    }
+
+    //TODO
+    public final byte[] generateRandom(int length)
+    {
+        byte[] b = new byte[length];
+        randomEngine.nextBytes(b);
+        return b;
     }
 }
