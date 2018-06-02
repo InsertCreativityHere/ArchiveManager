@@ -6,7 +6,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
@@ -21,16 +20,12 @@ final class EncryptionManager
     /**The default initialization vector to use if none are specified.**/
     private static final byte[] defaultIv = new byte[] {77, 97, 100, 105, 65, 117, 115, 116, 105, 110, 82, 97, 99, 104, 101, 108};
     /**Engine used for generating random variables.**/
-    private static final SecureRandom randomEngine = new SecureRandom();;
+    private static final SecureRandom randomEngine = new SecureRandom();
 
-    /**The internal counter used by the encryption manager.**/
-    private final byte[] counter;
-    /**Engine used for performing hash functions.**/
-    private final MessageDigest hashEngine1;
-    /**Engine used for performing hash functions.**/
-    private final MessageDigest hashEngine2;
     /**Engine used for encrypting and decrypting data.**/
     private final Cipher encryptionEngine;
+    /**The internal counter used by the encryption manager.**/
+    private final byte[] counter;
     /**The number of the block that the manager is currently over.**/
     private long currentPosition;
 
@@ -40,52 +35,12 @@ final class EncryptionManager
      * @param iv A 16 byte length array containing the initialization vector for the manager (starting value for the CTR counter). If null, the default IV is used.
      * @return A new instance of an Encryption Manager initialized with the specified key. Or null if the manager couldn't be initialized correctly.
     **/
-    static final EncryptionManager getInstance(byte[] key, byte[] iv)
-    {
-        try
-        {
-            return new EncryptionManager(key, iv);
-        } catch(NoSuchAlgorithmException|NoSuchPaddingException unsupportedCryptoException)
-        {
-            System.err.println("Your system doesn't provide support for either SHA-256 or AES256-ECB.");
-            unsupportedCryptoException.printStackTrace();
-        } catch(InvalidKeyException|InvalidAlgorithmParameterException cryptoParameterException)
-        {
-            System.err.println("The provided key or IV was invalid!");
-            cryptoParameterException.printStackTrace();
-        }
-        return null;
-    }
-
-    /**
-     * Creates a new encryption manager with a randomly generated key and iv.
-     * @param data An array at least 48 bytes long that the new manager's key and IV copied into upon initialization.
-     * @return A new instance of an Encryption Manager initialized with the specified key. Or null if the manager couldn't be initialized correctly.
-    **/
-    final EncryptionManager getInstance(byte[] data)
-    {
-        try
-        {
-            return new EncryptionManager(data);
-        } catch(NoSuchAlgorithmException|NoSuchPaddingException|InvalidKeyException unsupportedCryptoException)
-        {
-            System.err.println("Your system doesn't provide support for either SHA-256 or AES256-ECB.");
-            unsupportedCryptoException.printStackTrace();
-        }
-        return null;
-    }
-
-    //TODO
     private EncryptionManager(byte[] key, byte[] iv) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException
     {
         try
         {
-            //Create the hash and encryption engines for the manager
-            hashEngine1 = MessageDigest.getInstance("SHA-256");
-            hashEngine2 = MessageDigest.getInstance("SHA-256");
             encryptionEngine = Cipher.getInstance("AES/ECB/NoPadding");
-
-            encryptionEngine.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(hashEngine1.digest(key), "AES"));
+            encryptionEngine.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(HashManager.digest(key), "AES"));
             Arrays.fill(key, (byte)255);
 
             //Initialize a counter with the provided IV.
@@ -111,12 +66,14 @@ final class EncryptionManager
         }
     }
 
-    //TODO
+    /**
+     * Creates a new encryption manager with a randomly generated key and iv.
+     * @param data An array at least 48 bytes long that the new manager's key and IV copied into upon initialization.
+     * @return A new instance of an Encryption Manager initialized with the specified key. Or null if the manager couldn't be initialized correctly.
+    **/
     private EncryptionManager(byte[] data) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException
     {
         //Create all the engines for the manager.
-        hashEngine1 = MessageDigest.getInstance("SHA-256");
-        hashEngine2 = MessageDigest.getInstance("SHA-256");
         encryptionEngine = Cipher.getInstance("AES/ECB/NoPadding");
         currentPosition = 0;
 
@@ -282,38 +239,30 @@ final class EncryptionManager
     //TODO
     final byte[][] processWithAuthenticate(byte[] b, int offset, int length) throws IllegalBlockSizeException, BadPaddingException
     {
-        //Reset the hash engine
-        hashEngine1.reset();
         //Digest the plain-text
-        byte[] plainHash = hashEngine1.digest(b);
-
+        byte[] plainHash = HashManager.digest(b);
         process(b, offset, length);
-
-        //Reset the hash engine
-        hashEngine1.reset();
         //Digest the cipher-text and return it with the plain hash
-        return new byte[][] {plainHash, hashEngine1.digest(b)};
+        return new byte[][] {plainHash, HashManager.digest(b)};
     }
 
     //TODO
     final byte[][] processWithAuthenticate(InputStream inputStream, OutputStream outputStream, int bufferSize) throws IllegalBlockSizeException, BadPaddingException, IOException
     {
-        //Reset the hash engines
-        hashEngine1.reset();
-        hashEngine2.reset();
-
         byte[] buffer = new byte[(bufferSize / 16) * 16];
         int count;
+        int engine1 = HashManager.reserveEngine(true);
+        int engine2 = HashManager.reserveEngine(true);
         while((count = inputStream.read(buffer)) != -1)
         {
-            hashEngine1.update(buffer);
+            HashManager.update(engine1, buffer);
             process(buffer, 0, count);
-            hashEngine2.update(buffer);
+            HashManager.update(engine2, buffer);
             outputStream.write(buffer, 0, count);
         }
 
         //Digest the plain-text and cipher-text and return them
-        return new byte[][] {hashEngine1.digest(), hashEngine2.digest()};
+        return new byte[][] {HashManager.digest(engine1), HashManager.digest(engine2)};
     }
 
     //TODO
