@@ -3,10 +3,7 @@ package com.insertcreativity.archive;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -19,53 +16,23 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
 
-public final class EncryptionManager implements Serializable
+final class EncryptionManager
 {
     /**The default initialization vector to use if none are specified.**/
-    public static final byte[] defaultIv = new byte[] {77, 97, 100, 105, 65, 117, 115, 116, 105, 110, 82, 97, 99, 104, 101, 108};
+    private static final byte[] defaultIv = new byte[] {77, 97, 100, 105, 65, 117, 115, 116, 105, 110, 82, 97, 99, 104, 101, 108};
     /**Engine used for generating random variables.**/
-    private static final SecureRandom randomEngine;
-    /**Prevent potential attackers from serializing this object by generating a random UID whenever this class is loaded.**/
-    private static final long serialVersionUID;
-    static{
-        randomEngine = new SecureRandom();
-        serialVersionUID = randomEngine.nextLong();
-    }
-
-    /**
-     * Prevent potential attackers from cloning this object.
-    **/
-    public final Object clone() throws CloneNotSupportedException
-    {
-        throw new CloneNotSupportedException();
-    }
-
-    /**
-     * Prevent potential attackers from serializing this object.
-    **/
-    private final void writeObject(ObjectOutputStream out) throws IOException
-    {
-        throw new IOException("Object cannot be serialized.");
-    }
-
-    /**
-     * Prevent potential attackers from deserializing this object.
-    **/
-    private final void readObject(ObjectInputStream in) throws IOException
-    {
-        throw new IOException("Object cannot be serialized.");
-    }
+    private static final SecureRandom randomEngine = new SecureRandom();;
 
     /**The internal counter used by the encryption manager.**/
     private final byte[] counter;
-    /**The number of the block that the manager is currently over.**/
-    private long currentPosition;
     /**Engine used for performing hash functions.**/
     private final MessageDigest hashEngine1;
     /**Engine used for performing hash functions.**/
     private final MessageDigest hashEngine2;
     /**Engine used for encrypting and decrypting data.**/
     private final Cipher encryptionEngine;
+    /**The number of the block that the manager is currently over.**/
+    private long currentPosition;
 
     /**
      * Creates a new encryption manager. Note that the provided key will be erased after the manager finishes initializing.
@@ -73,7 +40,7 @@ public final class EncryptionManager implements Serializable
      * @param iv A 16 byte length array containing the initialization vector for the manager (starting value for the CTR counter). If null, the default IV is used.
      * @return A new instance of an Encryption Manager initialized with the specified key. Or null if the manager couldn't be initialized correctly.
     **/
-    public static final EncryptionManager getInstance(byte[] key, byte[] iv)
+    static final EncryptionManager getInstance(byte[] key, byte[] iv)
     {
         try
         {
@@ -95,7 +62,7 @@ public final class EncryptionManager implements Serializable
      * @param data An array at least 48 bytes long that the new manager's key and IV copied into upon initialization.
      * @return A new instance of an Encryption Manager initialized with the specified key. Or null if the manager couldn't be initialized correctly.
     **/
-    public final EncryptionManager getInstance(byte[] data)
+    final EncryptionManager getInstance(byte[] data)
     {
         try
         {
@@ -119,22 +86,28 @@ public final class EncryptionManager implements Serializable
             encryptionEngine = Cipher.getInstance("AES/ECB/NoPadding");
 
             encryptionEngine.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(hashEngine1.digest(key), "AES"));
+            Arrays.fill(key, (byte)255);
 
             //Initialize a counter with the provided IV.
             currentPosition = 0;
+            counter = new byte[16];
             if(iv == null)
             {
-                counter = defaultIv;
+                System.arraycopy(defaultIv, 0, counter, 0, 16);
             } else
             if(iv.length == 16){
-                counter = iv;
+                System.arraycopy(iv, 0, counter, 0, 16);
+                Arrays.fill(iv, (byte)255);
             } else{
                 throw new InvalidAlgorithmParameterException("IV must be exactly 16bytes in length.");
             }
         } finally{
-            //Ensure that the provided data is erased
+            //Ensure that the provided data was erased
             Arrays.fill(key, (byte)255);
-            Arrays.fill(iv, (byte)255);
+            if(iv != null)
+            {
+                Arrays.fill(iv, (byte)255);
+            }
         }
     }
 
@@ -168,7 +141,7 @@ public final class EncryptionManager implements Serializable
      * Moves the manager's counter to the specified position.
      * @param position The new position to move the counter to.
     **/
-    public final void seek(long position)
+    final void seek(long position)
     {
         seekRelative(position - currentPosition);
     }
@@ -177,7 +150,7 @@ public final class EncryptionManager implements Serializable
      * Moves the manager's counter forwards or backwards by the specified amount.
      * @param offset The relative amount to offset the counter by.
     **/
-    public final void seekRelative(long offset)
+    final void seekRelative(long offset)
     {
         if(offset == 0)
         {
@@ -280,7 +253,7 @@ public final class EncryptionManager implements Serializable
     }
 
     //TODO
-    public final void process(byte[] b, int offset, int length) throws IllegalBlockSizeException, BadPaddingException
+    final void process(byte[] b, int offset, int length) throws IllegalBlockSizeException, BadPaddingException
     {
         byte[] keyStream = null;
         for(int i = 0; i < length; i++)
@@ -295,7 +268,7 @@ public final class EncryptionManager implements Serializable
     }
 
     //TODO
-    public final void process(InputStream inputStream, OutputStream outputStream, int bufferSize) throws IllegalBlockSizeException, BadPaddingException, IOException
+    final void process(InputStream inputStream, OutputStream outputStream, int bufferSize) throws IllegalBlockSizeException, BadPaddingException, IOException
     {
         byte[] buffer = new byte[(bufferSize / 16) * 16];
         int count;
@@ -307,7 +280,7 @@ public final class EncryptionManager implements Serializable
     }
 
     //TODO
-    public final byte[][] processWithAuthenticate(byte[] b, int offset, int length) throws IllegalBlockSizeException, BadPaddingException
+    final byte[][] processWithAuthenticate(byte[] b, int offset, int length) throws IllegalBlockSizeException, BadPaddingException
     {
         //Reset the hash engine
         hashEngine1.reset();
@@ -323,7 +296,7 @@ public final class EncryptionManager implements Serializable
     }
 
     //TODO
-    public final byte[][] processWithAuthenticate(InputStream inputStream, OutputStream outputStream, int bufferSize) throws IllegalBlockSizeException, BadPaddingException, IOException
+    final byte[][] processWithAuthenticate(InputStream inputStream, OutputStream outputStream, int bufferSize) throws IllegalBlockSizeException, BadPaddingException, IOException
     {
         //Reset the hash engines
         hashEngine1.reset();
@@ -344,7 +317,7 @@ public final class EncryptionManager implements Serializable
     }
 
     //TODO
-    public static final byte[] generateRandom(int length)
+    static final byte[] generateRandom(int length)
     {
         byte[] b = new byte[length];
         randomEngine.nextBytes(b);
