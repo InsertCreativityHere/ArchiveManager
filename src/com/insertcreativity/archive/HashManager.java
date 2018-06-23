@@ -5,17 +5,20 @@ import java.security.DigestException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-/**Class for manager hash operations, which keeps a pre-allocated stock of hash engines that can reserved for use by other instances.
- * This helps parallelize file authentication and processing.**/
+/**
+ * Class for managing hash operations, which keeps a pre-allocated stock of hash engines that can reserved for use by other instances. This helps parallelize file authentication and processing.
+**/
 final class HashManager
 {
-    /**Create one message digest for every processor available**/
+    /**Create one message digest for every processor available.**/
     private static final MessageDigest[] hashPool;
-    /**Stores the availability of each hash engine**/
+    /**Stores the availability of each hash engine.**/
     private static final boolean[] available;
 
-    /**Initialize the hash manager
-     * @throws NoSuchAlgorithmException If the platform doesn't support 256bit SHA algorithms.**/
+    /**
+     * Initialize the hash manager.
+     * @throws IllegalStateException If the platform doesn't support 256bit SHA algorithms.
+    **/
     static
     {
         try
@@ -32,7 +35,7 @@ final class HashManager
             }
         } catch(NoSuchAlgorithmException noSuchAlgorithmException)
         {
-            throw new RuntimeException("256bit SHA not supported on this platform", noSuchAlgorithmException);
+            throw new IllegalStateException("256bit SHA not supported on this platform", noSuchAlgorithmException);
         }
     }
 
@@ -125,7 +128,12 @@ final class HashManager
     **/
     static final byte[] digest(int engine)
     {
-        return hashPool[engine].digest();
+        try
+        {
+            return hashPool[engine].digest();
+        } finally{
+            releaseEngine(engine);
+        }
     }
 
     /**
@@ -136,7 +144,12 @@ final class HashManager
     **/
     static final byte[] digest(int engine, byte[] data)
     {
-        return hashPool[engine].digest(data);
+        try
+        {
+            return hashPool[engine].digest(data);
+        } finally{
+            releaseEngine(engine);
+        }
     }
 
     /**
@@ -147,13 +160,16 @@ final class HashManager
     static final byte[] digest(byte[] data)
     {
         int engine = reserveEngine(true);
-        byte[] result = digest(engine, data);
-        releaseEngine(engine);
-        return result;
+        try
+        {
+            return digest(engine, data);
+        } finally{
+            releaseEngine(engine);
+        }
     }
 
     /**
-     * Completes the hash computation and writes the result into the provided byte array, at the specified offset
+     * Completes the hash computation and writes the result into the provided byte array, at the specified offset.
      * @param engine The index of the engine to finalize.
      * @param buffer Byte array that the results will be written into.
      * @param offset The offset to start writing the result at.
@@ -163,6 +179,11 @@ final class HashManager
      */
     static final int digest(int engine, byte[] buffer, int offset, int length) throws DigestException
     {
-        return hashPool[engine].digest(buffer, offset, length);
+        try
+        {
+            return hashPool[engine].digest(buffer, offset, length);
+        } finally{
+            releaseEngine(engine);
+        }
     }
 }
