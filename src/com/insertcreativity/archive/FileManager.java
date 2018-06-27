@@ -18,6 +18,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Class for encapsulating reading and writing to encrypted archive files. It contains an internal encryption engine utilizing 256bit AES-CTR, and an interface to the actual file.
+ * It's primarly used for reading data files, and to provide a framework for reading specialized archive file-trypes.
 **/
 class FileManager
 {

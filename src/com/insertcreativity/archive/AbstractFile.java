@@ -86,6 +86,7 @@ public abstract class AbstractFile
     /**
      * Reads a single byte from the file at the file-pointer's current position (and shifts the pointer forward by 1).
      * @return The value of the byte read from the file.
+     * @throws EOFException If EOF has been reached.
      * @throws IOException If the operation fails or is unsupported.
     **/
     public abstract byte readByte() throws IOException;
