@@ -224,6 +224,15 @@ class FileManager
     }
 
     /**
+     * Returns the file-pointer's current position in the file.
+     * @return The current position the manager is at in the file.
+    **/
+    final long getPosition()
+    {
+        return currentPosition;
+    }
+
+    /**
      * Moves the manager to the specified position(in bytes).
      * @param position The new position to move to in the file. Positive positions are measured from the start of the file, and negative positions are measured from the end.
      * @throws IOException If the operation fails unexpectedly or is unsupported.
@@ -342,7 +351,7 @@ class FileManager
         try
         {
             //Move to the start of the file.
-            seek(0);
+            seek(hashStart());
 
             byte[] buffer = new byte[65536];
             int count;
@@ -363,5 +372,14 @@ class FileManager
             HashEnginePool.releaseEngine(hash1);
             HashEnginePool.releaseEngine(hash2);
         }
+    }
+
+    /**
+     * Returns the position to start hashing a file from, used by file manager extensions to skip unhashable data.
+     * @return The position to start hashing a file at.
+    **/
+    long hashStart()
+    {
+        return 0;
     }
 }
