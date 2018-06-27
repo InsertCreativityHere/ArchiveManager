@@ -18,7 +18,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Class for encapsulating reading and writing to encrypted archive files. It contains an internal encryption engine utilizing 256bit AES-CTR, and an interface to the actual file.
- * It's primarly used for reading data files, and to provide a framework for reading specialized archive file-trypes.
+ * It's primarily used for reading data files, and to provide a framework for reading specialized archive file-trypes.
 **/
 class FileManager
 {
@@ -225,11 +225,15 @@ class FileManager
 
     /**
      * Moves the manager to the specified position(in bytes).
-     * @param position The new position to move to in the file.
+     * @param position The new position to move to in the file. Positive positions are measured from the start of the file, and negative positions are measured from the end.
      * @throws IOException If the operation fails unexpectedly or is unsupported.
     **/
     final void seek(long position) throws IOException
     {
+        if(position < 0)
+        {
+            position = file.length() - position;
+        }
         seekRelative(position - currentPosition);
     }
 
@@ -260,7 +264,7 @@ class FileManager
     /**
      * Reads data from the file at the current position into the provided buffer and decrypts it.
      * @param buffer The buffer to read data into.
-     * @return The number of bytes successfully read from the file.
+     * @return The number of bytes successfully read from the file, or -1 if the file is at EOF.
      * @throws IOException If the operation fails unexpectedly or is unsupported.
     **/
     final int readBytes(byte[] buffer) throws IOException
@@ -272,7 +276,7 @@ class FileManager
      * Reads data from the file at the current position into the provided buffer and decrypts it.
      * @param buffer The buffer to read data into.
      * @param offset The offset to start reading into in the buffer.
-     * @param length The number of bytes to read from the file.
+     * @param length The number of bytes to read from the file, or -1 if the file is at EOF.
      * @return The number of bytes successfully read from the file.
      * @throws IOException If the operation fails unexpectedly or is unsupported.
     **/
