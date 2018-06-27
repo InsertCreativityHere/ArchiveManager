@@ -8,7 +8,7 @@ import java.security.NoSuchAlgorithmException;
 /**
  * Class for managing hash operations, which keeps a pre-allocated stock of hash engines that can reserved for use by other instances. This helps parallelize file authentication and processing.
 **/
-final class HashManager
+final class HashEnginePool
 {
     /**Create one message digest for every processor available.**/
     private static final MessageDigest[] hashPool;

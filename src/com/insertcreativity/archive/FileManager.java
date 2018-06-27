@@ -19,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec;
 /**
  * Class for encapsulating reading and writing to encrypted archive files. It contains an internal encryption engine utilizing 256bit AES-CTR, and an interface to the actual file.
 **/
-final class FileManager
+class FileManager
 {
     /**Reference to the file that this is managing.**/
     private final AbstractFile file;
@@ -45,7 +45,7 @@ final class FileManager
         {
             //Initialize the crypto engine, and erase the key.
             cryptoEngine = Cipher.getInstance("AES/ECB/NoPadding");
-            cryptoEngine.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(HashManager.digest(key), "AES"));
+            cryptoEngine.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(HashEnginePool.digest(key), "AES"));
             Arrays.fill(key, (byte)255);
 
             //Initialize the counter with the provided IV, and erase the IV.
@@ -331,8 +331,8 @@ final class FileManager
     final byte[][] hash() throws IOException
     {
         //Reserve hash engines for the plain and cipher text of the file.
-        int hash1 = HashManager.reserveEngine(true);
-        int hash2 = HashManager.reserveEngine(true);
+        int hash1 = HashEnginePool.reserveEngine(true);
+        int hash2 = HashEnginePool.reserveEngine(true);
 
         try
         {
@@ -346,17 +346,17 @@ final class FileManager
                 //Read in the file's data.
                 count = file.readBytes(buffer);
                 //Hash the cipher text.
-                HashManager.update(hash1, buffer, 0, count);
+                HashEnginePool.update(hash1, buffer, 0, count);
                 //Decrypt the data.
                 process(buffer, 0, count);
                 //Hash the plain text.
-                HashManager.update(hash2, buffer, 0, count);
+                HashEnginePool.update(hash2, buffer, 0, count);
             }
 
-            return new byte[][] {HashManager.digest(hash1), HashManager.digest(hash2)};
+            return new byte[][] {HashEnginePool.digest(hash1), HashEnginePool.digest(hash2)};
         } finally{
-            HashManager.releaseEngine(hash1);
-            HashManager.releaseEngine(hash2);
+            HashEnginePool.releaseEngine(hash1);
+            HashEnginePool.releaseEngine(hash2);
         }
     }
 }
